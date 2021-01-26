@@ -29,6 +29,13 @@ trait HasInstrType {
   def InstrJ  = "b0111".U
   def InstrA  = "b1110".U
   def InstrSA = "b1111".U // Atom Inst: SC
+  def InstrVSI= "b1100".U // vector - vsetvli
+  def InstrVS = "b1001".U // src1:scala  - src2:vector
+  def InstrVV = "b1010".U // src1:vector - src2:vector
+  def InstrVI = "b1010".U // src1:imm    - src2:vector. use InstrVV
+  def InstrNS = "b1011".U // src1:scala  - src2:none
+  def InstrSS = "b0011".U // src1:scala  - src2:scala
+  def InstrVSB= "b1101".U // src1:None   - src2:vector, write back
 
   def isrfWen(instrType : UInt): Bool = instrType(2)
 }
@@ -60,6 +67,8 @@ object FuType extends HasNutCoreConst {
   def mdu = "b010".U
   def csr = "b011".U
   def mou = "b100".U
+  def vmu = "b101".U
+  def vxu = "b110".U
   def bru = if(IndependentBru) "b101".U
             else               alu
   def apply() = UInt(log2Up(num).W)

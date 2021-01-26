@@ -55,6 +55,10 @@ object ALUOpType {
   // for RAS
   def call = "b1011100".U
   def ret  = "b1011110".U
+  
+  // for RVV
+  def vcfg = "b001001".U
+  def vcfgm= "b001010".U
 
   def isAdd(func: UInt) = func(6)
   def pcPlus2(func: UInt) = func(5)

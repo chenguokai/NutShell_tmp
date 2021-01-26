@@ -1,0 +1,5 @@
+package VFU
+
+class VALUTest {
+    
+}

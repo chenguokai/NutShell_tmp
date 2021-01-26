@@ -28,6 +28,7 @@ import top.Settings
 trait HasNutCoreParameter {
   // General Parameter for NutShell
   val XLEN = if (Settings.get("IsRV32")) 32 else 64
+  val VLEN = if (Settings.get("IsRV32")) 128 else 256
   val HasMExtension = true
   val HasCExtension = Settings.get("EnableRVC")
   val HasDiv = true
