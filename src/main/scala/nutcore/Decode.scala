@@ -57,6 +57,8 @@ object SrcType {
   def reg = "b0".U
   def pc  = "b1".U
   def imm = "b1".U
+  def vreg= "b1".U
+  def none= "b1".U
   def apply() = UInt(1.W)
 }
 
@@ -67,10 +69,10 @@ object FuType extends HasNutCoreConst {
   def mdu = "b010".U
   def csr = "b011".U
   def mou = "b100".U
-  def vmu = "b101".U
-  def vxu = "b110".U
   def bru = if(IndependentBru) "b101".U
             else               alu
+  def vmu = "b110".U
+  def vxu = "b111".U
   def apply() = UInt(log2Up(num).W)
 }
 

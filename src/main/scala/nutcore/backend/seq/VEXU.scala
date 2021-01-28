@@ -53,7 +53,7 @@ class ClusterIO extends NutCoreBundle {
     val out = Decoupled(Output(UInt(XLEN.W)))
     val vsew = Input(UInt(2.W))
 }
-// todo: MDU and ALU should be decoupled rather than tied to each other
+
 class Cluster extends NutCoreModule {
     val io = IO(new ClusterIO)
     
@@ -159,10 +159,6 @@ class Cluster extends NutCoreModule {
         "b11".U   ->  src3
     ))
     val sg7_res = sg7.access(valid, sg7_src1, sg7_src2, sg7_src3, func, vsew, shamt, ready, maskv0(0))
-    
-    /*
-    
-     */
     
     // res
     val mduRes = LookupTree(vsew, List(

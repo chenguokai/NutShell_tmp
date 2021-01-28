@@ -6,7 +6,7 @@ SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
 TEST_FILE = $(shell find ./src/test/scala -name '*.scala')
 MEM_GEN = ./scripts/vlsi_mem_gen
 
-USE_READY_TO_RUN_NEMU = true
+USE_READY_TO_RUN_NEMU = false
 
 SIMTOP = top.TopMain
 IMAGE ?= ready-to-run/linux.bin
@@ -18,11 +18,11 @@ CORE  ?= inorder  # inorder  ooo  embedded
 .DEFAULT_GOAL = verilog
 
 help:
-	mill chiselModule.runMain top.$(TOP) --help BOARD=$(BOARD) CORE=$(CORE)
+	mill -i chiselModule.runMain top.$(TOP) --help BOARD=$(BOARD) CORE=$(CORE)
 
 $(TOP_V): $(SCALA_FILE)
 	mkdir -p $(@D)
-	mill chiselModule.runMain top.$(TOP) -td $(@D) --output-file $(@F) --infer-rw $(FPGATOP) --repl-seq-mem -c:$(FPGATOP):-o:$(@D)/$(@F).conf BOARD=$(BOARD) CORE=$(CORE)
+	mill -i chiselModule.runMain top.$(TOP) -td $(@D) --output-file $(@F) --infer-rw $(FPGATOP) --repl-seq-mem -c:$(FPGATOP):-o:$(@D)/$(@F).conf BOARD=$(BOARD) CORE=$(CORE)
 	$(MEM_GEN) $(@D)/$(@F).conf >> $@
 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
 	@git log -n 1 >> .__head__
@@ -47,7 +47,7 @@ SIM_TOP = NutShellSimTop
 SIM_TOP_V = $(BUILD_DIR)/$(SIM_TOP).v
 $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
 	mkdir -p $(@D)
-	mill chiselModule.test.runMain $(SIMTOP) -td $(@D) --output-file $(@F) BOARD=sim CORE=$(CORE)
+	mill -i chiselModule.test.runMain $(SIMTOP) -td $(@D) --output-file $(@F) BOARD=sim CORE=$(CORE)
 
 
 EMU_CSRC_DIR = $(abspath ./src/test/csrc)

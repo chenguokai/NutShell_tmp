@@ -275,3 +275,10 @@ object VMUOpType {
     def word   = "b10".U
     def elem   = "b11".U
 }
+
+class VCFGIO extends NutCoreBundle {
+    val vsew = Output(UInt(2.W))
+    val vlmul = Output(UInt(2.W))
+    val vlen = Output(UInt(XLEN.W))
+    // val vediv = Output(UInt(2.W))
+}
