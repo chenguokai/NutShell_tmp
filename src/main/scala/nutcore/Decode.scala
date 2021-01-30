@@ -57,6 +57,8 @@ object SrcType {
   def reg = "b0".U
   def pc  = "b1".U
   def imm = "b1".U
+  def vreg = "b1".U
+  def none = "b1".U
   def apply() = UInt(1.W)
 }
 
@@ -86,6 +88,7 @@ object Instructions extends HasInstrType with HasNutCoreParameter {
     (if (HasCExtension) RVCInstr.table else Nil) ++
     Priviledged.table ++
     RVAInstr.table ++
+    RVVInstr.table ++
     RVZicsrInstr.table ++ RVZifenceiInstr.table
 }
 

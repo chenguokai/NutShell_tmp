@@ -925,13 +925,11 @@ class CSR(implicit val p: NutCoreConfig) extends NutCoreModule with HasCSRConst{
     BoringUtils.addSource(RegNext(sepc), "difftestSepc")
     BoringUtils.addSource(RegNext(mcause), "difftestMcause")
     BoringUtils.addSource(RegNext(scause), "difftestScause")
-    /*
     BoringUtils.addSource(RegNext(vstart), "difftestVstart")
     BoringUtils.addSource(RegNext(vxsat), "difftestVxsat")
     BoringUtils.addSource(RegNext(vxrm), "difftestVxrm")
     BoringUtils.addSource(RegNext(vl), "difftestVl")
     BoringUtils.addSource(RegNext(vtype), "difftestVtype")
-     */
   } else {
     if (!p.FPGAPlatform) {
       BoringUtils.addSource(readWithScala(perfCntList("Mcycle")._1), "simCycleCnt")

@@ -2,6 +2,7 @@ package nutcore
 
 import Chisel.{Decoupled, Log2}
 import chisel3._
+import chisel3.util.experimental.BoringUtils
 
 trait HasVRegFileParameter {
     val NVReg = 32
@@ -35,7 +36,7 @@ class VRegFileSingleBank extends NutCoreModule with HasVRegFileParameter {
     }
 }
 
-class VRegFile extends NutCoreModule with HasVRegFileParameter {
+class VRegFile(implicit val p: NutCoreConfig) extends NutCoreModule with HasVRegFileParameter {
     val io = IO(Flipped(new VRegFileIO))
     
     // a vector of single bank register file
@@ -55,9 +56,29 @@ class VRegFile extends NutCoreModule with HasVRegFileParameter {
         rf_vec(i).io.raddr := io.raddr(i)
         io.rdata(i) := rf_vec(i).io.rdata
     }
+    
+    if (!p.FPGAPlatform) {
+        val vrf_ref = Wire(Vec(128, UInt(64.W)))
+        /*
+        (0 until NVREG).map(i => {
+            val t = vrf.read(i.U)
+            vrf_ref(i*4) := t(63,0)
+            vrf_ref(i*4+1) := t(127, 64)
+            vrf_ref(i*4+2) := t(191, 128)
+            vrf_ref(i*4+3) := t(255, 192)
+        })
+         */
+        // actually wrong implementation, should be able to implement a real implementation when we finished four lanes
+        for (i <- 0 until NVReg * 4) {
+            vrf_ref(i) := rf_vec(0).io.rdata
+        }
+        BoringUtils.addSource(vrf_ref, "difftestVectorRegs")
+    }
 }
 
 // Debug purpose only
+/*
 object VRegFileGen extends App {
-    chisel3.Driver.execute(args, () => new VRegFile)
+    chisel3.Driver.execute(args, () => new VRegFile())
 }
+ */

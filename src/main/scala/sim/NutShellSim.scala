@@ -46,6 +46,13 @@ class DiffTestIO extends Bundle {
   val sepc = Output(UInt(64.W))
   val mcause = Output(UInt(64.W))
   val scause = Output(UInt(64.W))
+  
+  val vr = Output(Vec(128, UInt(64.W)))
+  val vstart = Output(UInt(64.W))
+  val vxsat = Output(UInt(64.W))
+  val vxrm = Output(UInt(64.W))
+  val vl = Output(UInt(64.W))
+  val vtype = Output(UInt(64.W))
 }
 
 class LogCtrlIO extends Bundle {
@@ -94,6 +101,13 @@ class NutShellSimTop extends Module {
   BoringUtils.addSink(difftest.sepc, "difftestSepc")
   BoringUtils.addSink(difftest.mcause, "difftestMcause")
   BoringUtils.addSink(difftest.scause, "difftestScause")
+  
+  BoringUtils.addSink(difftest.vr, "difftestVectorRegs")
+  BoringUtils.addSink(difftest.vstart, "difftestVstart")
+  BoringUtils.addSink(difftest.vxsat, "difftestVxsat")
+  BoringUtils.addSink(difftest.vxrm, "difftestVxrm")
+  BoringUtils.addSink(difftest.vl, "difftestVl")
+  BoringUtils.addSink(difftest.vtype, "difftestVtype")
   io.difftest := difftest
 
   val log_begin, log_end, log_level = WireInit(0.U(64.W))

@@ -84,6 +84,17 @@ class EXU(implicit val p: NutCoreConfig) extends NutCoreModule {
   mou.io.cfIn := io.in.bits.cf
   mou.io.out.ready := true.B
   
+  // only for debug purpose
+  val vreg = Module(new VRegFile)
+  val vreg_foo = Wire(Vec(8, UInt(1.W)))
+  for (i <- 0 until 8) {
+    vreg_foo(i) := 0.U
+  }
+  vreg.io.raddr := vreg_foo
+  vreg.io.waddr := 0.U
+  vreg.io.wdata := 0.U
+  vreg.io.wen := 0.U
+  
   io.out.bits.decode := DontCare
   (io.out.bits.decode.ctrl, io.in.bits.ctrl) match { case (o, i) =>
     o.rfWen := i.rfWen && (!lsuTlbPF && !lsu.io.loadAddrMisaligned && !lsu.io.storeAddrMisaligned || !fuValids(FuType.lsu)) && !(csr.io.wenFix && fuValids(FuType.csr))

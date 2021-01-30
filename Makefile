@@ -64,6 +64,7 @@ EMU_LDFLAGS   = -lpthread -lSDL2 -ldl
 # +define+RANDOMIZE_MEM_INIT
 VERILATOR_FLAGS = --top-module $(SIM_TOP) \
   +define+RV$(DATAWIDTH)=1 \
+  --debug --trace \
   +define+VERILATOR=1 \
   +define+PRINTF_COND=1 \
   --assert \
