@@ -1,9 +1,8 @@
 package nutcore
 
-import Chisel.Cat
 import chisel3._
-import chisel3.util.Fill
-import utils.Debug
+import chisel3.util.{Cat, Fill}
+import utils.{Debug, LookupTreeDefault}
 
 object VALUOpType {
     // rearrange OpType according to element size
@@ -566,4 +565,67 @@ class VALU extends NutCoreModule {
 // Debug purpose only
 object VALUGen extends App {
     chisel3.Driver.execute(args, () => new VALU)
+}
+
+
+// unify IO port between MDU and VALU
+class VALU_ClusterIO extends NutCoreModule {
+    val io = IO(new ClusterIO)
+    val (valid, ready, src1, src2, src3, func, vsew, maskv0) = (io.in.valid, io.out.ready, io.in.bits.src1, io.in.bits.src2, io.in.bits.src3, io.in.bits.func, io.vsew, io.in.bits.maskv0)
+    def access(valid: Bool, src1: UInt, src2: UInt, src3: UInt, func: UInt, vsew: UInt, ready: Bool, maskv0: UInt) = {
+        this.valid := valid
+        this.src1 := Mux(VXUOpType.isReverse(func), src2, src1)
+        this.src2 := Mux(VXUOpType.isReverse(func), src1, src2)
+        this.src3 := src3
+        this.func := func
+        this.vsew := vsew
+        this.ready := ready
+        this.maskv0 := maskv0
+        (io.in.ready, io.out.bits, io.out.valid)
+    }
+    
+    val valu = Module(new VALU)
+    val valufunc = LookupTreeDefault(Cat(func, vsew), 0.U, List(
+        Cat(VXUOpType.add, VMUOpType.byte) -> VALUOpType.add8,
+        Cat(VXUOpType.add, VMUOpType.half) -> VALUOpType.add16,
+        Cat(VXUOpType.add, VMUOpType.word) -> VALUOpType.add32,
+        Cat(VXUOpType.add, VMUOpType.elem) -> VALUOpType.add64,
+        Cat(VXUOpType.sub, VMUOpType.byte) -> VALUOpType.sub8,
+        Cat(VXUOpType.sub, VMUOpType.half) -> VALUOpType.sub16,
+        Cat(VXUOpType.sub, VMUOpType.word) -> VALUOpType.sub32,
+        Cat(VXUOpType.sub, VMUOpType.elem) -> VALUOpType.sub64,
+        Cat(VXUOpType.sll, VMUOpType.byte) -> VALUOpType.sll8,
+        Cat(VXUOpType.sll, VMUOpType.half) -> VALUOpType.sll16,
+        Cat(VXUOpType.sll, VMUOpType.word) -> VALUOpType.sll32,
+        Cat(VXUOpType.sll, VMUOpType.elem) -> VALUOpType.sll64,
+        Cat(VXUOpType.srl, VMUOpType.byte) -> VALUOpType.srl8,
+        Cat(VXUOpType.srl, VMUOpType.half) -> VALUOpType.srl16,
+        Cat(VXUOpType.srl, VMUOpType.word) -> VALUOpType.srl32,
+        Cat(VXUOpType.srl, VMUOpType.elem) -> VALUOpType.srl64,
+        Cat(VXUOpType.sra, VMUOpType.byte) -> VALUOpType.sra8,
+        Cat(VXUOpType.sra, VMUOpType.half) -> VALUOpType.sra16,
+        Cat(VXUOpType.sra, VMUOpType.word) -> VALUOpType.sra32,
+        Cat(VXUOpType.sra, VMUOpType.elem) -> VALUOpType.sra64,
+        Cat(VXUOpType.and, VMUOpType.byte) -> VALUOpType.and,
+        Cat(VXUOpType.and, VMUOpType.half) -> VALUOpType.and,
+        Cat(VXUOpType.and, VMUOpType.word) -> VALUOpType.and,
+        Cat(VXUOpType.and, VMUOpType.elem) -> VALUOpType.and,
+        Cat(VXUOpType.or, VMUOpType.byte) -> VALUOpType.or,
+        Cat(VXUOpType.or, VMUOpType.half) -> VALUOpType.or,
+        Cat(VXUOpType.or, VMUOpType.word) -> VALUOpType.or,
+        Cat(VXUOpType.or, VMUOpType.elem) -> VALUOpType.or,
+        Cat(VXUOpType.xor, VMUOpType.byte) -> VALUOpType.xor,
+        Cat(VXUOpType.xor, VMUOpType.half) -> VALUOpType.xor,
+        Cat(VXUOpType.xor, VMUOpType.word) -> VALUOpType.xor,
+        Cat(VXUOpType.xor, VMUOpType.elem) -> VALUOpType.xor
+        // Cat(VXUOpType.mslt, VMUOpType.byte) -> VALUOpType.sra8,
+        // todo: rsub, compare (slt sltu etc)
+    ))
+    
+    // result of ALU
+    val aluRes = valu.access(src1, src2, valufunc)
+    
+    io.out.bits := aluRes
+    io.in.ready := 1.U // always ready for new input
+    io.out.valid := valid // always depends on input
 }

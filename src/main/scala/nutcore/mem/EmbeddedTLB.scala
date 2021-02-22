@@ -66,7 +66,7 @@ class EmbeddedTLB(implicit val tlbConfig: TLBConfig) extends TlbModule{
     val in = Flipped(new SimpleBusUC(userBits = userBits, addrBits = VAddrBits))
     val out = new SimpleBusUC(userBits = userBits)
 
-    val mem = new SimpleBusUC()
+    val mem = new SimpleBusUC(userBits = DCacheUserBundleWidth)
     val flush = Input(Bool()) 
     val csrMMU = new MMUIO
     val cacheEmpty = Input(Bool())
@@ -178,7 +178,7 @@ class EmbeddedTLBExec(implicit val tlbConfig: TLBConfig) extends TlbModule{
     val mdWrite = new TLBMDWriteBundle(IndexBits = IndexBits, Ways = Ways, tlbLen = tlbLen)
     val mdReady = Input(Bool())
 
-    val mem = new SimpleBusUC()
+    val mem = new SimpleBusUC(userBits = DCacheUserBundleWidth)
     val flush = Input(Bool()) 
     val satp = Input(UInt(XLEN.W))
     val pf = new MMUIO
@@ -379,7 +379,8 @@ class EmbeddedTLBExec(implicit val tlbConfig: TLBConfig) extends TlbModule{
   io.out.bits.addr := Mux(hit, maskPaddr(hitData.ppn, req.addr(PAddrBits-1, 0), hitMask), maskPaddr(memRespStore.asTypeOf(pteBundle).ppn, req.addr(PAddrBits-1, 0), missMaskStore))
   io.out.valid := io.in.valid && Mux(hit && !hitWB, !(io.pf.isPF() || loadPF || storePF), state === s_wait_resp)// && !alreadyOutFire
   
-  io.in.ready := io.out.ready && (state === s_idle) && !miss && !hitWB && io.mdReady && (!io.pf.isPF() && !loadPF && !storePF)//maybe be optimized
+  // io.in.ready := io.out.ready && (state === s_idle) && !miss && !hitWB && io.mdReady && (!io.pf.isPF() && !loadPF && !storePF)//maybe be optimized
+  io.in.ready := io.out.fire() || !io.in.valid || ((state === s_idle) && !miss && !hitWB && io.mdReady && (!io.pf.isPF() && !loadPF && !storePF))
 
   io.ipf := Mux(hit, hitinstrPF, missIPF)
   io.isFinish := io.out.fire() || io.pf.isPF()

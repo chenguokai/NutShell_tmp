@@ -2,238 +2,159 @@ package nutcore
 
 import chisel3._
 import chisel3.util._
+import chisel3.util.experimental.BoringUtils
 import utils.{LookupTree, LookupTreeDefault, SignExt, ZeroExt}
 
-class SingleIO(val Width: Int = 64) extends NutCoreBundle {
-    val in = Flipped(Decoupled(new Bundle {
-        val src1 = Output(UInt(Width.W))
-        val src2 = Output(UInt(Width.W))
-        val src3 = Output(UInt(Width.W))
-        val func = Output(FuOpType())
-        val vsew = Output(UInt(2.W))
-        // val shamt = Output(UInt(log2Ceil(Width).W))
-        val mask = Output(Bool())
-    }))
-    val out = Decoupled(Output(UInt(Width.W)))
+class VPUIO extends FunctionUnitIO {
+    val instr = Input(UInt(32.W)) // vs1/vs2/vd
+    val fuType = Input(FuType()) //
+    val dmem = new VMEMIO(userBits = DVMemUserBits)
+    val cfg = Flipped(new VCFGIO)
+    // vmu may not exec mmio,
 }
 
 
-class Single(val Width: Int = 64) extends NutCoreModule {
-    val io = IO(new SingleIO(Width = Width))
+// TODO: how to deal with VPU-exception, for VPU is also at EXU-stage
+class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter with HasVRegFileParameter {
+    val io = IO(new VPUIO)
     
-    val (valid, src1, src2, src3, func, vsew, out, mask) = (io.in.valid, io.in.bits.src1, io.in.bits.src2, io.in.bits.src3, io.in.bits.func, io.in.bits.vsew, io.out.bits, io.in.bits.mask)
-    def access(valid: UInt,src1: UInt, src2: UInt, src3: UInt, func: UInt, vsew: UInt, shamt: UInt, ready: Bool, mask: Bool): UInt = {
+    val (valid, src1, src2, func, fuType) = (io.in.valid, io.in.bits.src1, io.in.bits.src2, io.in.bits.func, io.fuType)
+    
+    def access(valid: Bool, src1: UInt, src2: UInt, func: UInt, fuType: UInt): UInt = {
         this.valid := valid
         this.src1 := src1
         this.src2 := src2
-        this.src3 := src3
         this.func := func
-        this.vsew := vsew
-        this.mask := mask
-        io.out.ready := ready
-        out
-    }
-    val vmdu = Module(new VMDU(Width))
-    val mduOut = vmdu.access(valid = valid, src1, src2, src3, func, vsew)
-    vmdu.io.out.ready := io.out.ready
-        
-    io.in.ready := vmdu.io.in.ready
-    io.out.bits := mduOut // res
-    io.out.valid := vmdu.io.out.valid
-}
-
-class ClusterIO extends NutCoreBundle {
-    val in = Flipped(Decoupled(new Bundle {
-        val src1 = Output(UInt(XLEN.W))
-        val src2 = Output(UInt(XLEN.W))
-        val src3 = Output(UInt(XLEN.W))
-        val func = Output(FuOpType())
-        val maskv0 = Output(UInt((XLEN/8).W))
-    }))
-    val out = Decoupled(Output(UInt(XLEN.W)))
-    val vsew = Input(UInt(2.W))
-}
-
-class Cluster extends NutCoreModule {
-    val io = IO(new ClusterIO)
-    
-    val (valid, ready, src1, src2, src3, func, vsew, maskv0) = (io.in.valid, io.out.ready, io.in.bits.src1, io.in.bits.src2, io.in.bits.src3, io.in.bits.func, io.vsew, io.in.bits.maskv0)
-    def access(valid: Bool, src1: UInt, src2: UInt, src3: UInt, func: UInt, vsew: UInt, ready: Bool, maskv0: UInt) = {
-        this.valid := valid
-        this.src1 := Mux(VXUOpType.isReverse(func), src2, src1)
-        this.src2 := Mux(VXUOpType.isReverse(func), src1, src2)
-        this.src3 := src3
-        this.func := func
-        this.vsew := vsew
-        this.ready := ready
-        this.maskv0 := maskv0
-        (io.in.ready, io.out.bits, io.out.valid)
+        this.fuType := fuType
+        io.out.bits // move vsetvl(i) from alu to vpu later
     }
     
-    // adder 8:16:8:32:8:16:8:64
-    val sg0 = Module(new Single(8))
-    val sg1 = Module(new Single(16))
-    val sg2 = Module(new Single(8))
-    val sg3 = Module(new Single(32))
-    val sg4 = Module(new Single(8))
-    val sg5 = Module(new Single(16))
-    val sg6 = Module(new Single(8))
-    val sg7 = Module(new Single(64))
+    val instr = io.instr
+    val (vm, vs1, vs2, vd, vs3) = (instr(25), instr(19, 15), instr(24, 20), instr(11, 7), instr(11, 7))
     
-    val isSign1 = VXUOpType.isSigned1(func)
-    val isSign2 = VXUOpType.isSigned2(func)
-    val shamt = LookupTree(vsew, List(
-        "b00".U   ->  "b111".U,
-        "b01".U   ->  "b1111".U,
-        "b10".U   ->  "b11111".U,
-        "b11".U   ->  "b111111".U
-    ))
-    
-    // sg0
-    val sg0_src1 = src1(63, 56)
-    val sg0_src2 = src2(63, 56)
-    val sg0_src3 = src3(63, 56)
-    val sg0_res = sg0.access(valid, sg0_src1, sg0_src2, sg0_src3, func, vsew, shamt, ready, maskv0(7))
-    // sg1
-    val sg1_src1 = Mux(vsew(0), src1(63, 48), Mux(isSign1, SignExt(src1(55, 48), 16), ZeroExt(src1(55, 48), 16)))
-    val sg1_src2 = Mux(vsew(0), src2(63, 48), Mux(isSign2, SignExt(src2(55, 48), 16), ZeroExt(src2(55, 48), 16)))
-    val sg1_src3 = Mux(vsew(0), src3(63, 48), SignExt(src3(55, 48), 16))
-    val sg1_res = sg1.access(valid, sg1_src1, sg1_src2, sg1_src3, func, vsew, shamt, ready, maskv0(6))
-    // sg2
-    val sg2_src1 = src1(47, 40)
-    val sg2_src2 = src2(47, 40)
-    val sg2_src3 = src3(47, 40)
-    val sg2_res = sg2.access(valid, sg2_src1, sg2_src2, sg2_src3, func, vsew, shamt, ready, maskv0(5))
-    // sg3
-    val sg3_src1 = LookupTree(vsew, List(
-        "b00".U   ->  Mux(isSign1, SignExt(src1(39, 32), 32), ZeroExt(src1(39, 32), 32)),
-        "b01".U   ->  Mux(isSign1, SignExt(src1(47, 32), 32), ZeroExt(src1(47, 32), 32)),
-        "b10".U   ->  src1(63, 32),
-        "b11".U   ->  0.U
-    ))
-    val sg3_src2 = LookupTree(vsew, List(
-        "b00".U   ->  Mux(isSign2, SignExt(src2(39, 32), 32), ZeroExt(src2(39, 32), 32)),
-        "b01".U   ->  Mux(isSign2, SignExt(src2(47, 32), 32), ZeroExt(src2(47, 32), 32)),
-        "b10".U   ->  src2(63, 32),
-        "b11".U   ->  0.U
-    ))
-    val sg3_src3 = LookupTree(vsew, List(
-        "b00".U   ->  SignExt(src3(39, 32), 32),
-        "b01".U   ->  SignExt(src3(47, 32), 32),
-        "b10".U   ->  src3(63, 32),
-        "b11".U   ->  0.U
-    ))
-    val sg3_res = sg3.access(valid, sg3_src1, sg3_src2, sg3_src3, func, vsew, shamt, ready, maskv0(4))
-    // sg4
-    val sg4_src1 = src1(31, 24)
-    val sg4_src2 = src2(31, 24)
-    val sg4_src3 = src3(31, 24)
-    val sg4_res = sg4.access(valid, sg4_src1, sg4_src2, sg4_src3, func, vsew, shamt, ready, maskv0(3))
-    // sg5
-    val sg5_src1 = Mux(vsew(0), src1(31, 16), Mux(isSign1, SignExt(src1(23, 16), 16), ZeroExt(src1(23, 16), 16)))
-    val sg5_src2 = Mux(vsew(0), src2(31, 16), Mux(isSign2, SignExt(src2(23, 16), 16), ZeroExt(src2(23, 16), 16)))
-    val sg5_src3 = Mux(vsew(0), src3(31, 16), SignExt(src3(23, 16), 16))
-    val sg5_res = sg5.access(valid, sg5_src1, sg5_src2, sg5_src3, func, vsew, shamt, ready, maskv0(2))
-    // sg6
-    val sg6_src1 = src1(15, 8)
-    val sg6_src2 = src2(15, 8)
-    val sg6_src3 = src3(15, 8)
-    val sg6_res = sg6.access(valid, sg6_src1, sg6_src2, sg6_src3, func, vsew, shamt, ready, maskv0(1))
-    // sg7
-    val sg7_src1 = LookupTree(vsew, List(
-        "b00".U   ->  Mux(isSign1, SignExt(src1(7, 0), 64), ZeroExt(src1(7, 0), 64)),
-        "b01".U   ->  Mux(isSign1, SignExt(src1(15, 0), 64), ZeroExt(src1(15, 0), 64)),
-        "b10".U   ->  Mux(isSign1, SignExt(src1(31, 0), 64), ZeroExt(src1(31, 0), 64)),
-        "b11".U   ->  src1
-    ))
-    val sg7_src2 = LookupTree(vsew, List(
-        "b00".U   ->  Mux(isSign2, SignExt(src2( 7, 0), 64), ZeroExt(src2(7, 0), 64)),
-        "b01".U   ->  Mux(isSign2, SignExt(src2(15, 0), 64), ZeroExt(src2(15, 0), 64)),
-        "b10".U   ->  Mux(isSign2, SignExt(src2(31, 0), 64), ZeroExt(src2(31, 0), 64)),
-        "b11".U   ->  src2
-    ))
-    val sg7_src3 = LookupTree(vsew, List(
-        "b00".U   ->  SignExt(src3( 7, 0), 64),
-        "b01".U   ->  SignExt(src3(15, 0), 64),
-        "b10".U   ->  SignExt(src3(31, 0), 64),
-        "b11".U   ->  src3
-    ))
-    val sg7_res = sg7.access(valid, sg7_src1, sg7_src2, sg7_src3, func, vsew, shamt, ready, maskv0(0))
-    
-    // res
-    val mduRes = LookupTree(vsew, List(
-        "b00".U   ->  Cat(sg0_res(7,0), sg1_res(7,0), sg2_res(7,0), sg3_res(7,0), sg4_res(7,0), sg5_res(7,0), sg6_res(7,0), sg7_res(7,0)),
-        "b01".U   ->  Cat(sg1_res(15,0), sg3_res(15,0),  sg5_res(15,0), sg7_res(15,0)),
-        "b10".U   ->  Cat(sg3_res(31,0), sg7_res(31,0)),
-        "b11".U   ->  sg7_res
-    ))
-    
-    val res = mduRes
-    
-    io.out.bits := res
-    io.out.valid := sg7.io.out.valid
-    io.in.ready := sg7.io.in.ready
-}
-
-
-// unify IO port between MDU and VALU
-class VALU_ClusterIO extends NutCoreModule {
-    val io = IO(new ClusterIO)
-    val (valid, ready, src1, src2, src3, func, vsew, maskv0) = (io.in.valid, io.out.ready, io.in.bits.src1, io.in.bits.src2, io.in.bits.src3, io.in.bits.func, io.vsew, io.in.bits.maskv0)
-    def access(valid: Bool, src1: UInt, src2: UInt, src3: UInt, func: UInt, vsew: UInt, ready: Bool, maskv0: UInt) = {
-        this.valid := valid
-        this.src1 := Mux(VXUOpType.isReverse(func), src2, src1)
-        this.src2 := Mux(VXUOpType.isReverse(func), src1, src2)
-        this.src3 := src3
-        this.func := func
-        this.vsew := vsew
-        this.ready := ready
-        this.maskv0 := maskv0
-        (io.in.ready, io.out.bits, io.out.valid)
+    val vmu = Module(new VMU)
+    //val vxu = Module(new VXU)
+    // val vrf = new VectorRegFile
+    val vrf = for (i <- 0 until NLane) yield {
+        val rf_lane = Module(new VRegArbiter())
+        // Bank 0: VMU v0
+        rf_lane.io.read.raddr(0) := 0.U
+        // Bank 1: VMU src2
+        rf_lane.io.read.raddr(1) := vmu.io.vreg.vs2
+        // Bank 2: VMU src3
+        rf_lane.io.read.raddr(2) := vmu.io.vreg.vs3
+        rf_lane.io.write.waddr(0) := vmu.io.vreg.vd
+        rf_lane.io.write.wdata(0) := vmu.io.vreg.wdata(i * 64 + 63, i * 64)
+        rf_lane.io.write.wmask(0) := vmu.io.vreg.wmask(i * 8 + 7, i * 8)
+        rf_lane.io.write.wen(0).valid := 1.U // always valid
+        rf_lane.io.write.wen(0).bits := vmu.io.vreg.wen
+        rf_lane
+    }
+    // todo: add difftest here
+    if (!p.FPGAPlatform) {
+        val vrf_ref = Wire(Vec(128, UInt(64.W)))
+        // actually wrong implementation, should be able to implement a real implementation when we finished four lanes
+        for (i <- 0 until NVReg) {
+            vrf_ref(i * 4) := vrf(0).io.debug(i)
+            vrf_ref(i * 4 + 1) := vrf(1).io.debug(i)
+            vrf_ref(i * 4 + 2) := vrf(2).io.debug(i)
+            vrf_ref(i * 4 + 3) := vrf(3).io.debug(i)
+        }
+        BoringUtils.addSource(vrf_ref, "difftestVectorRegs")
     }
     
-    val valu = Module(new VALU)
-    val valufunc = LookupTreeDefault(Cat(func, vsew), 0.U, List(
-        Cat(VXUOpType.add, VMUOpType.byte) -> VALUOpType.add8,
-        Cat(VXUOpType.add, VMUOpType.half) -> VALUOpType.add16,
-        Cat(VXUOpType.add, VMUOpType.word) -> VALUOpType.add32,
-        Cat(VXUOpType.add, VMUOpType.elem) -> VALUOpType.add64,
-        Cat(VXUOpType.sub, VMUOpType.byte) -> VALUOpType.sub8,
-        Cat(VXUOpType.sub, VMUOpType.half) -> VALUOpType.sub16,
-        Cat(VXUOpType.sub, VMUOpType.word) -> VALUOpType.sub32,
-        Cat(VXUOpType.sub, VMUOpType.elem) -> VALUOpType.sub64,
-        Cat(VXUOpType.sll, VMUOpType.byte) -> VALUOpType.sll8,
-        Cat(VXUOpType.sll, VMUOpType.half) -> VALUOpType.sll16,
-        Cat(VXUOpType.sll, VMUOpType.word) -> VALUOpType.sll32,
-        Cat(VXUOpType.sll, VMUOpType.elem) -> VALUOpType.sll64,
-        Cat(VXUOpType.srl, VMUOpType.byte) -> VALUOpType.srl8,
-        Cat(VXUOpType.srl, VMUOpType.half) -> VALUOpType.srl16,
-        Cat(VXUOpType.srl, VMUOpType.word) -> VALUOpType.srl32,
-        Cat(VXUOpType.srl, VMUOpType.elem) -> VALUOpType.srl64,
-        Cat(VXUOpType.sra, VMUOpType.byte) -> VALUOpType.sra8,
-        Cat(VXUOpType.sra, VMUOpType.half) -> VALUOpType.sra16,
-        Cat(VXUOpType.sra, VMUOpType.word) -> VALUOpType.sra32,
-        Cat(VXUOpType.sra, VMUOpType.elem) -> VALUOpType.sra64,
-        Cat(VXUOpType.and, VMUOpType.byte) -> VALUOpType.and,
-        Cat(VXUOpType.and, VMUOpType.half) -> VALUOpType.and,
-        Cat(VXUOpType.and, VMUOpType.word) -> VALUOpType.and,
-        Cat(VXUOpType.and, VMUOpType.elem) -> VALUOpType.and,
-        Cat(VXUOpType.or, VMUOpType.byte) -> VALUOpType.or,
-        Cat(VXUOpType.or, VMUOpType.half) -> VALUOpType.or,
-        Cat(VXUOpType.or, VMUOpType.word) -> VALUOpType.or,
-        Cat(VXUOpType.or, VMUOpType.elem) -> VALUOpType.or,
-        Cat(VXUOpType.xor, VMUOpType.byte) -> VALUOpType.xor,
-        Cat(VXUOpType.xor, VMUOpType.half) -> VALUOpType.xor,
-        Cat(VXUOpType.xor, VMUOpType.word) -> VALUOpType.xor,
-        Cat(VXUOpType.xor, VMUOpType.elem) -> VALUOpType.xor
-        // Cat(VXUOpType.mslt, VMUOpType.byte) -> VALUOpType.sra8,
-        // todo: rsub, compare (slt sltu etc)
+    vmu.access(FuType.vmu === fuType && io.in.valid, src1, src2, func(5, 0), vs2, vd)
+    vmu.io.dmem <> io.dmem
+    vmu.io.cfg <> io.cfg
+    vmu.io.vm := vm
+    vmu.io.out.ready := io.out.ready
+    /*
+    vxu.access(FuType.vxu === fuType && io.in.valid, src1, src2, func, vs1, vs2, vd)
+    vxu.io.cfg <> io.cfg
+    vxu.io.vm := vm
+    vxu.io.out.ready := io.out.ready
+     */
+    
+    // Bank 0: VMU v0
+    val vmu_v0 = Cat(vrf(3).io.read.rdata(0), vrf(2).io.read.rdata(0), vrf(1).io.read.rdata(0), vrf(0).io.read.rdata(0)) // mask
+    
+    // VMU src1: DontCare
+    // Bank 1: VMU src2
+    val vmu_src2 = Cat(vrf(3).io.read.rdata(1), vrf(2).io.read.rdata(1), vrf(1).io.read.rdata(1),  vrf(0).io.read.rdata(1))
+
+    // Bank 2: VMU src3
+    val vmu_src3 = Cat(vrf(3).io.read.rdata(2), vrf(2).io.read.rdata(1), vrf(1).io.read.rdata(2), vrf(0).io.read.rdata(2))
+
+    // Bank 3: VXU src1
+    // Bank 4: VXU src2
+    // Bank 5: VXU src3
+    // Bank 6: VMDU src1
+    // Bank 7: VMDU src2
+    // Bank 8: VMDU src3
+    // Bank 9: VSLDU src
+    
+    /*
+    val vrfSrc1 = Mux1H(List(
+        (vmu.io.in.valid || vmu.io.out.bits) -> 0.U,
+        (vxu.io.in.valid || vxu.io.out.bits.busy) -> vxu.io.vreg.vs1
     ))
+    val vrfSrc2 = Mux1H(List(
+        (vmu.io.in.valid || vmu.io.out.bits) -> vmu.io.vreg.vs2,
+        (vxu.io.in.valid || vxu.io.out.bits.busy) -> vxu.io.vreg.vs2
     
-    // result of ALU
-    val aluRes = valu.access(src1, src2, valufunc)
+    ))
+    val vrfSrc3 = Mux1H(List(
+        (vmu.io.in.valid || vmu.io.out.bits) -> vmu.io.vreg.vs3,
+        (vxu.io.in.valid || vxu.io.out.bits.busy) -> vxu.io.vreg.vs3
+    ))
+    val vrfDest = Mux1H(List(
+        vmu.io.out.bits -> vmu.io.vreg.vd,
+        vxu.io.out.bits.busy -> vxu.io.vreg.vd
+    ))
+    val vWdata = Mux1H(List(
+        vmu.io.out.bits -> vmu.io.vreg.wdata,
+        vxu.io.out.bits.busy -> vxu.io.vreg.wdata
+    ))
+    val vWmask = Mux1H(List(
+        vmu.io.out.bits -> vmu.io.vreg.wmask,
+        vxu.io.out.bits.busy -> vxu.io.vreg.wmask
+    ))
+    val vWen = vmu.io.vreg.wen || vxu.io.vreg.wen
+    assert(!vmu.io.vreg.wen || !vxu.io.vreg.wen)
+     */
     
-    io.out.bits := aluRes
-    io.in.ready := 1.U // always ready for new input
-    io.out.valid := valid // always depends on input
+    
+    vmu.io.vreg.v0 := vmu_v0
+    vmu.io.vreg.vsrc2 := vmu_src2
+    vmu.io.vreg.vsrc3 := vmu_src3
+    vmu.io.vreg.vsrc1 := DontCare
+    
+    /*
+    vxu.io.vreg.v0 := v0
+    vxu.io.vreg.vsrc1 := vsrc1
+    vxu.io.vreg.vsrc2 := vsrc2
+    vxu.io.vreg.vsrc3 := vsrc3
+     */
+    
+    // assert(!vmu.io.out.valid || !vxu.io.out.valid)
+    
+    io.out.valid := vmu.io.out.valid // || vxu.io.out.valid
+    io.out.bits := DontCare //vxu.io.out.bits.scala
+    io.in.ready := vmu.io.in.ready //&& vxu.io.in.ready
+    
+    /*
+    BoringUtils.addSource(io.out.fire(), "perfCntCondMvInstr")
+    BoringUtils.addSource(io.out.fire() && vxu.io.out.valid, "perfCntCondMvxInstr")
+    BoringUtils.addSource(io.out.fire() && vmu.io.out.valid, "perfCntCondMvmInstr")
+    BoringUtils.addSource(!io.in.ready, "perfCntCondMvCycle")
+    BoringUtils.addSource(!vxu.io.in.ready, "perfCntCondMvxCycle")
+    BoringUtils.addSource(!vmu.io.in.ready, "perfCntCondMvmCycle")
+    BoringUtils.addSource(io.dmem.mem.req.fire(), "perfCntCondMvmReq")
+    BoringUtils.addSource(io.dmem.mem.req.fire() && io.dmem.mem.isRead(), "perfCntCondMvmReqLd")
+    BoringUtils.addSource(io.dmem.mem.req.fire() && io.dmem.mem.isWrite(), "perfCntCondMvmReqSt")
+    BoringUtils.addSource(!vmu.io.in.ready && VMUOpType.isLoad(func), "perfCntCondMvmLdStall")
+    BoringUtils.addSource(!vmu.io.in.ready && VMUOpType.isStore(func), "perfCntCondMvmStStall")
+    BoringUtils.addSource(io.in.fire() && vmu.io.in.valid && VMUOpType.isLoad(func), "perfCntCondMvmLdInstr")
+    BoringUtils.addSource(io.in.fire() && vmu.io.in.valid && VMUOpType.isStore(func), "perfCntCondMvmStInstr")
+     */
 }
