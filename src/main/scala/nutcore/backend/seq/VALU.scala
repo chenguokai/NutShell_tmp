@@ -7,7 +7,7 @@ import utils.{Debug, LookupTreeDefault}
 object VALUOpType {
     // rearrange OpType according to element size
     // mostly sync with VXUOpType
-    def OpLen = 7
+    def OpLen = 8
     def add8  = "b00000_00".U
     def add16 = "b00000_01".U
     def add32 = "b00000_10".U
@@ -35,6 +35,10 @@ object VALUOpType {
     def sra32 = "b00101_10".U
     def sra64 = "b00101_11".U
     
+    
+    // note: normal calculation does NOT use this!!!
+    // thus this encoding may NOT be the most proper choice
+    // may introduce confliction with other function
     def slt8  = "b00110_00".U
     def slt16 = "b00110_01".U
     def slt32 = "b00110_10".U

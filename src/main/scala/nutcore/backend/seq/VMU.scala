@@ -21,21 +21,6 @@ trait HasVectorParameter extends HasNutCoreParameter{
     val HasNonBLockingCache = false
 }
 
-class VRegRWBus extends NutCoreBundle with HasVectorParameter {
-    val vs1 = Output(UInt(5.W))
-    val vs2 = Output(UInt(5.W))
-    val vs3 = Output(UInt(5.W))
-    val vd  = Output(UInt(5.W))
-    val wen = Output(Bool())
-    val wmask  = Output(UInt(MLEN.W))
-    val wdata = Output(UInt(VLEN.W))
-    
-    val v0    = Input(UInt(VLEN.W))
-    val vsrc1 = Input(UInt(VLEN.W))
-    val vsrc2 = Input(UInt(VLEN.W))
-    val vsrc3 = Input(UInt(VLEN.W))
-}
-
 
 class VMEMIO(val userBits: Int = 0) extends NutCoreBundle {
     val mem = new SimpleBusUC(userBits = userBits, addrBits = VAddrBits)
@@ -435,7 +420,8 @@ class VMU extends NutCoreModule with HasVectorParameter {
     val rdata = All64_256(vmuExec.io.out.bits.rdata, vmuExec.io.out.bits.position.idx2, vmuExec.io.out.bits.position.idx3)
     io.vreg.wdata := rdata
     io.vreg.wmask := gen_mask_shift(wmask, Cat(vmuExec.io.out.bits.position.idx2, vmuExec.io.out.bits.position.idx3))
-    io.vreg.wen := vmuExec.io.out.valid && VMUOpType.isLoad(func_reg)
+    io.vreg.wen.bits := vmuExec.io.out.valid && VMUOpType.isLoad(func_reg)
+    io.vreg.wen.valid := 1.U
     io.vreg.vs1 := DontCare
     io.vreg.vs2 := Mux(!valid_reg, vs2, vs2_next)
     io.vreg.vs3 := Mux(!valid_reg,  vd, vs3_next)

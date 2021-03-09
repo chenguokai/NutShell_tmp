@@ -12,8 +12,8 @@ trait HasVRegFileParameter {
     val NFu = 4 // number of function units: ALU MDU LSU and SlideU
      */
     // currently only VMU
-    val NBank = 3
-    val NFu = 1
+    val NBank = 6
+    val NFu = 2
 }
 
 class VRegFileIO extends NutCoreBundle with HasVRegFileParameter with HasVectorParameter {
@@ -143,19 +143,19 @@ class VRegArbiter(implicit val p: NutCoreConfig) extends NutCoreModule with HasV
         wdata := io.write.wdata(0)
         waddr := io.write.waddr(0)
         io.write.wen(0).ready := true.B
-        //io.write.wen(1).ready := false.B
+        io.write.wen(1).ready := false.B
         //io.write.wen(2).ready := false.B
         //io.write.wen(3).ready := false.B
-        /*
     } .elsewhen (io.write.wen(1).valid && io.write.wen(1).bits.asBool()) {
         wen := true.B
         wmask := io.write.wmask(1)
         wdata := io.write.wdata(1)
         waddr := io.write.waddr(1)
         io.write.wen(0).ready := false.B
-        //io.write.wen(1).ready := true.B
+        io.write.wen(1).ready := true.B
         //io.write.wen(2).ready := false.B
         //io.write.wen(3).ready := false.B
+        /*
     } .elsewhen (io.write.wen(2).valid && io.write.wen(2).bits.asBool()) {
         wen := true.B
         wmask := io.write.wmask(2)
@@ -181,7 +181,7 @@ class VRegArbiter(implicit val p: NutCoreConfig) extends NutCoreModule with HasV
         wdata := DontCare
         waddr := DontCare
         io.write.wen(0).ready := false.B
-        //io.write.wen(1).ready := false.B
+        io.write.wen(1).ready := false.B
         //io.write.wen(2).ready := false.B
         //io.write.wen(3).ready := false.B
     }

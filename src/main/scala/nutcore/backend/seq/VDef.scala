@@ -1,7 +1,7 @@
 package nutcore
 
 import chisel3._
-import chisel3.util.Cat
+import chisel3.util.{Cat, Decoupled}
 
 object VXUOpType {
     /* op - unsign - [mask/compare/mdu/normal] - src1 */
@@ -281,4 +281,19 @@ class VCFGIO extends NutCoreBundle {
     val vlmul = Output(UInt(2.W))
     val vlen = Output(UInt(XLEN.W))
     // val vediv = Output(UInt(2.W))
+}
+
+class VRegRWBus extends NutCoreBundle with HasVectorParameter {
+    val vs1 = Output(UInt(5.W))
+    val vs2 = Output(UInt(5.W))
+    val vs3 = Output(UInt(5.W))
+    val vd  = Output(UInt(5.W))
+    val wen = Decoupled(Output(Bool()))
+    val wmask  = Output(UInt(MLEN.W))
+    val wdata = Output(UInt(VLEN.W))
+    
+    val v0    = Input(UInt(VLEN.W))
+    val vsrc1 = Input(UInt(VLEN.W))
+    val vsrc2 = Input(UInt(VLEN.W))
+    val vsrc3 = Input(UInt(VLEN.W))
 }

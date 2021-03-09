@@ -118,6 +118,12 @@ class Emulator {
     dut_ptr->clock = 0;
     dut_ptr->eval();
 
+#if VM_TRACE
+    tfp->dump(cycles);
+#endif
+
+    cycles ++;
+
     dut_ptr->clock = 1;
     dut_ptr->eval();
 
