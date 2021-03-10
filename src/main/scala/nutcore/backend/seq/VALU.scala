@@ -52,11 +52,11 @@ object VALUOpType {
     
     
     // no extra handling needed
-    def xor  = "b01000_00".U
+    def xor  = "b01100".U
     
-    def or   = "b01001_00".U
+    def or   = "b01011".U
     
-    def and  = "b01010_00".U
+    def and  = "b01010".U
     
     
     
@@ -110,9 +110,9 @@ class VALU extends NutCoreModule {
     val isSrl_8 = VALUOpType.srl8 === io.in.func
     val isSrl = isSrl_64 | isSrl_32 | isSrl_16 | isSrl_8
     
-    val isXor = VALUOpType.xor === io.in.func
-    val isOr = VALUOpType.or === io.in.func
-    val isAnd = VALUOpType.and === io.in.func
+    val isXor = VALUOpType.xor === io.in.func(6, 2)
+    val isOr = VALUOpType.or === io.in.func(6, 2)
+    val isAnd = VALUOpType.and === io.in.func(6, 2)
     
     val isSub_64 = VALUOpType.sub64 === io.in.func
     val isSub_32 = VALUOpType.sub32 === io.in.func

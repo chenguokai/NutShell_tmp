@@ -16,6 +16,7 @@ class VEXUIO extends NutCoreBundle {
         val vs1 = Output(UInt(5.W))
         val vs2 = Output(UInt(5.W))
         val vd  = Output(UInt(5.W))
+        // val vv  = Output(UInt(3.W))
     }))
     val out = Decoupled(new Bundle {
         val busy = Output(Bool())
@@ -65,7 +66,28 @@ class VEXU(val Lane_number: Int) extends NutCoreModule with HasVectorParameter {
     vm := io.vm
     
     // val vsrc1 = Wire(UInt(XLEN.W))
-    
+    def gen_scalar_src(src: UInt) = {
+        val ret = Wire(UInt(XLEN.W))
+        val src_8 = Wire(UInt(8.W))
+        val src_16 = Wire(UInt(16.W))
+        val src_32 = Wire(UInt(32.W))
+        val src_64 = Wire(UInt(64.W))
+        src_8 := src
+        src_16 := src
+        src_32 := src
+        src_64 := src
+        val src_8_comp = Cat(src_8, src_8, src_8, src_8, src_8, src_8, src_8, src_8)
+        val src_16_comp = Cat(src_16, src_16, src_16, src_16)
+        val src_32_comp = Cat(src_32, src_32)
+        val src_64_comp = src_64
+        ret := MuxLookup(io.cfg.vsew, DontCare, List(
+            VMUOpType.byte -> src_8_comp,
+            VMUOpType.half -> src_16_comp,
+            VMUOpType.word -> src_32_comp,
+            VMUOpType.elem -> src_64_comp
+        ))
+        ret
+    }
     
     
     when (state === 0.U) {
@@ -80,21 +102,24 @@ class VEXU(val Lane_number: Int) extends NutCoreModule with HasVectorParameter {
     val alu_func = Wire(UInt(VALUOpType.OpLen.W))
     val func_reverse = Wire(FuOpType())
     
-    when (VXUOpType.isReverse(io.in.bits.func)) {
-        alu_src1 := io.in.bits.rsrc2
-    } .elsewhen (VXUOpType.isSrc1Vector(io.in.bits.func)) {
-        alu_src1 := io.vreg.vsrc1 // io.vreg.vs1((Lane_number + 1) * XLEN - 1,  (Lane_number) * XLEN)
+    when (VXUOpType.isReverse(io.in.bits.func) && VXUOpType.isSrc1Scala(io.in.bits.func)) {
+        alu_src1 := gen_scalar_src(io.in.bits.rsrc1)
+    } .elsewhen (VXUOpType.isReverse(io.in.bits.func)) {
+        alu_src1 := gen_scalar_src(io.in.bits.rsrc2) // io.vreg.vs1((Lane_number + 1) * XLEN - 1,  (Lane_number) * XLEN)
     } .otherwise {
-        // rsrc1 has been processed by ISU: either from scalar reg or from imm
-        alu_src1 := io.in.bits.rsrc1
+        // vs2 is always presented
+        alu_src1 := io.vreg.vsrc2 // io.vreg.vs2((Lane_number + 1) * XLEN - 1,  (Lane_number) * XLEN)
     }
     
     when (VXUOpType.isReverse(io.in.bits.func)) {
+        alu_src2 := io.vreg.vsrc2
+    } .elsewhen (VXUOpType.isSrc1Vector(io.in.bits.func)) {
         alu_src2 := io.vreg.vsrc1 // io.vreg.vs1((Lane_number + 1) * XLEN - 1,  (Lane_number) * XLEN)
     } .otherwise {
-        // vs2 is always presented
-        alu_src2 := io.vreg.vsrc2 // io.vreg.vs2((Lane_number + 1) * XLEN - 1,  (Lane_number) * XLEN)
+        // rsrc2 has been processed by ISU: either from scalar reg or from imm
+        alu_src2 := gen_scalar_src(io.in.bits.rsrc1)
     }
+    
     
     when (VXUOpType.isReverse(io.in.bits.func)) {
         func_reverse := VXUOpType.subvv // any subv(i/x/v) is valid here, just notify ALU we are doing a sub

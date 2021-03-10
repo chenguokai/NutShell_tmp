@@ -78,10 +78,8 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         
         rf_lane
     }
-    // todo: add difftest here
     if (!p.FPGAPlatform) {
         val vrf_ref = Wire(Vec(128, UInt(64.W)))
-        // actually wrong implementation, should be able to implement a real implementation when we finished four lanes
         for (i <- 0 until NVReg) {
             vrf_ref(i * 4) := vrf(0).io.debug(i)
             vrf_ref(i * 4 + 1) := vrf(1).io.debug(i)

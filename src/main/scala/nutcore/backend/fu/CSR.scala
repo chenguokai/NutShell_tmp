@@ -373,7 +373,7 @@ class CSR(implicit val p: NutCoreConfig) extends NutCoreModule with HasCSRConst{
   val vxrm   = RegInit(UInt(XLEN.W), 0.U)
   val vl     = RegInit(UInt(XLEN.W), 0.U)
   val vtype  = RegInit(UInt(XLEN.W), 0.U)
-  val vtype_mask = ZeroExt("hf".U(4.W), 4) // TODO: only support low 4 bit now
+  val vtype_mask = ZeroExt("h1f".U(5.W), 5) // TODO: only support low 4 bit now
   val vsetvl_req = WireInit(0.U(XLEN.W))
   val vsetvl_wen = WireInit(false.B)
   
