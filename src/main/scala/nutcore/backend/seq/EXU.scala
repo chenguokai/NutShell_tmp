@@ -100,7 +100,7 @@ class EXU(implicit val p: NutCoreConfig) extends NutCoreModule {
   
   val vpu = Module(new VPU)
   // vpu does not write register (just for now).
-  val vpuOut = vpu.access(valid = fuValids(FuType.vmu) || fuValids(FuType.vxu), src1 = src1, src2 = src2, func = fuOpType, fuType = fuType)
+  val vpuOut = vpu.access(valid = fuValids(FuType.vmu) || fuValids(FuType.vxu) || fuValids(FuType.vmdu), src1 = src1, src2 = src2, func = fuOpType, fuType = fuType)
   vpu.io.instr := io.in.bits.cf.instr
   io.vdmem <> vpu.io.dmem.mem
   vpu.io.out.ready := true.B
@@ -127,7 +127,8 @@ class EXU(implicit val p: NutCoreConfig) extends NutCoreModule {
     FuType.lsu -> lsu.io.out.valid,
     FuType.mdu -> mdu.io.out.valid,
     FuType.vmu -> vpu.io.out.valid,
-    FuType.vxu -> vpu.io.out.valid
+    FuType.vxu -> vpu.io.out.valid,
+    FuType.vmdu -> vpu.io.out.valid
   ))
 
   io.out.bits.commits(FuType.alu) := aluOut
@@ -137,6 +138,7 @@ class EXU(implicit val p: NutCoreConfig) extends NutCoreModule {
   io.out.bits.commits(FuType.mou) := 0.U
   io.out.bits.commits(FuType.vmu) := 0.U // TODO: need change to support vsetvl
   io.out.bits.commits(FuType.vxu) := vpuOut
+  io.out.bits.commits(FuType.vmdu) := 0.U
 
   io.in.ready := !io.in.valid || io.out.fire()
 

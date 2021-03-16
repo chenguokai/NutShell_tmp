@@ -12,8 +12,8 @@ trait HasVRegFileParameter {
     val NFu = 4 // number of function units: ALU MDU LSU and SlideU
      */
     // currently only VMU
-    val NBank = 6
-    val NFu = 2
+    val NBank = 10
+    val NFu = 3
 }
 
 class VRegFileIO extends NutCoreBundle with HasVRegFileParameter with HasVectorParameter {
@@ -144,7 +144,7 @@ class VRegArbiter(implicit val p: NutCoreConfig) extends NutCoreModule with HasV
         waddr := io.write.waddr(0)
         io.write.wen(0).ready := true.B
         io.write.wen(1).ready := false.B
-        //io.write.wen(2).ready := false.B
+        io.write.wen(2).ready := false.B
         //io.write.wen(3).ready := false.B
     } .elsewhen (io.write.wen(1).valid && io.write.wen(1).bits.asBool()) {
         wen := true.B
@@ -153,17 +153,18 @@ class VRegArbiter(implicit val p: NutCoreConfig) extends NutCoreModule with HasV
         waddr := io.write.waddr(1)
         io.write.wen(0).ready := false.B
         io.write.wen(1).ready := true.B
-        //io.write.wen(2).ready := false.B
+        io.write.wen(2).ready := false.B
         //io.write.wen(3).ready := false.B
-        /*
+        
     } .elsewhen (io.write.wen(2).valid && io.write.wen(2).bits.asBool()) {
         wen := true.B
         wmask := io.write.wmask(2)
         wdata := io.write.wdata(2)
         waddr := io.write.waddr(2)
         io.write.wen(0).ready := false.B
-        //io.write.wen(1).ready := false.B
-        //io.write.wen(2).ready := true.B
+        io.write.wen(1).ready := false.B
+        io.write.wen(2).ready := true.B
+        /*
         //io.write.wen(3).ready := false.B
     } .elsewhen (io.write.wen(3).valid && io.write.wen(3).bits.asBool()) {
         wen := true.B
@@ -182,7 +183,7 @@ class VRegArbiter(implicit val p: NutCoreConfig) extends NutCoreModule with HasV
         waddr := DontCare
         io.write.wen(0).ready := false.B
         io.write.wen(1).ready := false.B
-        //io.write.wen(2).ready := false.B
+        io.write.wen(2).ready := false.B
         //io.write.wen(3).ready := false.B
     }
     

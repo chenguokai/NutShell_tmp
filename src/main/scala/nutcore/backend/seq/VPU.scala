@@ -40,6 +40,11 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         ret
     }
     
+    val vmdu = for (i <- 0 until NLane) yield {
+        val ret = Module(new VMDU_Embedded(i))
+        ret
+    }
+    
     val vexu_in_ready_lane = Wire(Vec(NLane, UInt(1.W)))
     val vexu_out_valid_lane = Wire(Vec(NLane, UInt(1.W)))
     for (i <- 0 until NLane) {
@@ -48,6 +53,15 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
     }
     val vexu_in_ready = vexu_in_ready_lane.reduce(Cat(_, _)).andR()
     val vexu_out_valid = vexu_out_valid_lane.reduce(Cat(_, _)).andR()
+    
+    val vmdu_in_ready_lane = Wire(Vec(NLane, UInt(1.W)))
+    val vmdu_out_valid_lane = Wire(Vec(NLane, UInt(1.W)))
+    for (i <- 0 until NLane) {
+        vmdu_in_ready_lane(i) := vmdu(i).io.in.ready
+        vmdu_out_valid_lane(i) := vmdu(i).io.out.valid
+    }
+    val vmdu_in_ready = vmdu_in_ready_lane.reduce(Cat(_, _)).andR()
+    val vmdu_out_valid = vmdu_out_valid_lane.reduce(Cat(_, _)).andR()
     
     val vrf = for (i <- 0 until NLane) yield {
         val rf_lane = Module(new VRegArbiter())
@@ -64,6 +78,13 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         rf_lane.io.read.raddr(4) := vexu(i).io.vreg.vs1
         // Bank 5: VEXU src2
         rf_lane.io.read.raddr(5) := vexu(i).io.vreg.vs2
+        // Bank 6: VMDU src1
+        rf_lane.io.read.raddr(6) := vmdu(i).io.vreg.vs1
+        // Bank 7: VMDU src2
+        rf_lane.io.read.raddr(7) := vmdu(i).io.vreg.vs2
+        // Bank 8: VMDU src3
+        rf_lane.io.read.raddr(8) := vmdu(i).io.vreg.vd
+        rf_lane.io.read.raddr(9) := 0.U
         
         // Write port 0: VMU
         rf_lane.io.write.waddr(0) := vmu.io.vreg.vd
@@ -75,6 +96,11 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         rf_lane.io.write.wdata(1) := vexu(i).io.vreg.wdata
         rf_lane.io.write.wmask(1) := vexu(i).io.vreg.wmask
         rf_lane.io.write.wen(1) <> vexu(i).io.vreg.wen
+        // Write port 2: VMDU
+        rf_lane.io.write.waddr(2) := vmdu(i).io.vreg.vd
+        rf_lane.io.write.wdata(2) := vmdu(i).io.vreg.wdata
+        rf_lane.io.write.wmask(2) := vmdu(i).io.vreg.wmask
+        rf_lane.io.write.wen(2) <> vmdu(i).io.vreg.wen
         
         rf_lane
     }
@@ -107,11 +133,17 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         vexu(i).io.vreg.vsrc1 := vrf(i).io.read.rdata(4)
         vexu(i).io.vreg.vsrc2 := vrf(i).io.read.rdata(5)
         vexu(i).io.vreg.vsrc3 := DontCare
-    }
     
-    // Bank 6: VMDU src1
-    // Bank 7: VMDU src2
-    // Bank 8: VMDU src3
+        // Bank 6: VMDU src1
+        // Bank 7: VMDU src2
+        // Bank 8: VMDU src3
+        vmdu(i).io.vreg.vsrc1 := vrf(i).io.read.rdata(6)
+        vmdu(i).io.vreg.vsrc2 := vrf(i).io.read.rdata(7)
+        vmdu(i).io.vreg.vsrc3 := vrf(i).io.read.rdata(8)
+    }
+   
+    // Bank 9: VMDU v0
+    val vmdu_v0 = Cat(vrf(3).io.read.rdata(9), vrf(2).io.read.rdata(9), vrf(1).io.read.rdata(9), vrf(0).io.read.rdata(9))
     // Bank 9: VSLDU src
     
     vmu.access(FuType.vmu === fuType && io.in.valid, src1, src2, func(5, 0), vs2, vd)
@@ -126,6 +158,12 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         vexu(i).io.vm := vm
         vexu(i).io.out.ready := io.out.ready
         vexu(i).io.vreg.v0 := vexu_v0
+        
+        vmdu(i).access(FuType.vmdu === fuType && io.in.valid, src1, src2, func, vs1, vs2, vd)
+        vmdu(i).io.cfg <> io.cfg
+        vmdu(i).io.vm := vm
+        vmdu(i).io.out.ready := io.out.ready
+        vmdu(i).io.vreg.v0 := vmdu_v0
     }
     
     /*
@@ -174,9 +212,9 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
     
     // assert(!vmu.io.out.valid || !vxu.io.out.valid)
     
-    io.out.valid := vmu.io.out.valid || vexu_out_valid
+    io.out.valid := vmu.io.out.valid || vexu_out_valid || vmdu_out_valid
     io.out.bits := DontCare //vxu.io.out.bits.scala
-    io.in.ready := vmu.io.in.ready && vexu_in_ready
+    io.in.ready := vmu.io.in.ready && vexu_in_ready && vmdu_in_ready
     
     /*
     BoringUtils.addSource(io.out.fire(), "perfCntCondMvInstr")
