@@ -19,6 +19,7 @@ trait HasVectorParameter extends HasNutCoreParameter{
     val VLMULMAX = 8
     val bVLMULMAX = 3
     val HasNonBLockingCache = false
+    val nVFU = 3
 }
 
 
