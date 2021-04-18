@@ -31,7 +31,11 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
     
     val instr = io.instr
     val (vm, vs1, vs2, vd, vs3) = (instr(25), instr(19, 15), instr(24, 20), instr(11, 7), instr(11, 7))
-    
+
+    val vseq = Module(new VSeq)
+    vseq.access(valid, src1, src2, func, fuType)
+    vseq.io.in <> io
+
     val vmu = Module(new VMU)
     //val vxu = Module(new VXU)
     // val vrf = new VectorRegFile
@@ -146,23 +150,32 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
     val vmdu_v0 = Cat(vrf(3).io.read.rdata(9), vrf(2).io.read.rdata(9), vrf(1).io.read.rdata(9), vrf(0).io.read.rdata(9))
     // Bank 9: VSLDU src
     
-    vmu.access(FuType.vmu === fuType && io.in.valid, src1, src2, func(5, 0), vs2, vd)
-    vmu.io.dmem <> io.dmem
-    vmu.io.cfg <> io.cfg
-    vmu.io.vm := vm
-    vmu.io.out.ready := io.out.ready
-    
+    vmu.access(FuType.vmu === vseq.io.out(fu_vmu).fuType && vseq.io.out(fu_vmu).valid, vseq.io.out(fu_vmu).src1, vseq.io.out(fu_vmu).src2, vseq.io.out(fu_vmu).func(5, 0), vseq.io.out(fu_vmu).vs2, vseq.io.out(fu_vmu).vd)
+    vmu.io.dmem <> vseq.io.dmem
+    vmu.io.cfg.vlen := vseq.io.out(fu_vmu).vlen
+    vmu.io.cfg.vsew := vseq.io.out(fu_vmu).vsew
+    vmu.io.cfg.vlmul := vseq.io.out(fu_vmu).vlmul
+    vmu.io.vm := vseq.io.out(fu_vmu).vm
+    vmu.io.out.ready := 1.B // always ready to commit
+
     for (i <- 0 until NLane) {
-        vexu(i).access(FuType.vxu === fuType && io.in.valid, src1, src2, func, vs1, vs2, vd)
-        vexu(i).io.cfg <> io.cfg
-        vexu(i).io.vm := vm
-        vexu(i).io.out.ready := io.out.ready
+        vexu(i).access(FuType.vxu === vseq.io.out(fu_vxu).fuType && vseq.io.out(fu_vxu).valid, vseq.io.out(fu_vxu).src1, vseq.io.out(fu_vxu).src2, vseq.io.out(fu_vxu).func, vseq.io.out(fu_vxu).vs1, vseq.io.out(fu_vxu).vs2, vseq.io.out(fu_vxu).vd)
+        // vexu(i).io.cfg <> io.cfg
+        vexu(i).io.cfg.vsew := vseq.io.out(fu_vxu).vsew
+        vexu(i).io.cfg.vlen := vseq.io.out(fu_vxu).vlen
+        vexu(i).io.cfg.vlmul := vseq.io.out(fu_vxu).vlmul
+
+        vexu(i).io.vm := vseq.io.out(fu_vxu).vm
+        vexu(i).io.out.ready := 1.B // always ready to commit
         vexu(i).io.vreg.v0 := vexu_v0
         
-        vmdu(i).access(FuType.vmdu === fuType && io.in.valid, src1, src2, func, vs1, vs2, vd)
-        vmdu(i).io.cfg <> io.cfg
-        vmdu(i).io.vm := vm
-        vmdu(i).io.out.ready := io.out.ready
+        vmdu(i).access(FuType.vmdu === vseq.io.out(fu_vmdu).fuType && vseq.io.out(fu_vmdu).valid, vseq.io.out(fu_vmdu).src1, vseq.io.out(fu_vmdu).src2, vseq.io.out(fu_vmdu).func, vseq.io.out(fu_vmdu).vs1, vseq.io.out(fu_vmdu).vs2, vseq.io.out(fu_vmdu).vd)
+        // vmdu(i).io.cfg <> io.cfg
+        vmdu(i).io.cfg.vsew := vseq.io.out(fu_vmdu).vsew
+        vmdu(i).io.cfg.vlen := vseq.io.out(fu_vmdu).vlen
+        vmdu(i).io.cfg.vlmul := vseq.io.out(fu_vmdu).vlmul
+        vmdu(i).io.vm := vseq.io.out(fu_vmdu).vm
+        vmdu(i).io.out.ready := 1.B // always ready to commit
         vmdu(i).io.vreg.v0 := vmdu_v0
     }
     
@@ -211,10 +224,13 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
      */
     
     // assert(!vmu.io.out.valid || !vxu.io.out.valid)
-    
-    io.out.valid := vmu.io.out.valid || vexu_out_valid || vmdu_out_valid
+    vseq.io.out_valid(fu_vmu) := vmu.io.out.valid
+    vseq.io.out_valid(fu_vxu) := vexu_out_valid
+    vseq.io.out_valid(fu_vmdu) := vmdu_out_valid
+
+    io.out.valid := vseq.io.in.out.valid
     io.out.bits := DontCare //vxu.io.out.bits.scala
-    io.in.ready := vmu.io.in.ready && vexu_in_ready && vmdu_in_ready
+    io.in.ready := vseq.io.in.in.ready
     
     /*
     BoringUtils.addSource(io.out.fire(), "perfCntCondMvInstr")
