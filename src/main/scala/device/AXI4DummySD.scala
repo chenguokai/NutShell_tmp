@@ -53,7 +53,7 @@ class SDHelper extends BlackBox with HasBlackBoxInline {
       |  input ren,
       |  output reg [31:0] data
       |);
-      |
+      |  /* verilator lint_off LATCH */
       |  always@(*) begin
       |    if (setAddr) sd_setaddr(addr);
       |    if (ren) sd_read(data);

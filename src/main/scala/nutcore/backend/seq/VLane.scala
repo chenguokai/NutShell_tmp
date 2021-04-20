@@ -117,7 +117,7 @@ class VEXU(val Lane_number: Int) extends NutCoreModule with HasVectorParameter {
         alu_src2 := io.vreg.vsrc1 // io.vreg.vs1((Lane_number + 1) * XLEN - 1,  (Lane_number) * XLEN)
     } .otherwise {
         // rsrc2 has been processed by ISU: either from scalar reg or from imm
-        alu_src2 := gen_scalar_src(io.in.bits.rsrc1)
+        alu_src2 := gen_scalar_src(io.in.bits.rsrc2)
     }
     
     

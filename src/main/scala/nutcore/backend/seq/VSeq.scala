@@ -165,7 +165,7 @@ class VSeq extends NutCoreModule with HasVectorParameter {
     // next v0 and all vd s
     val raw_v0_vd = Wire(Vec(nVFU, UInt(1.W)))
     for (i <- 0 until nVFU) {
-        raw_v0_vd(i) := current_fu_valid(i) && (next_v0_taken & vd_taken(i) ) =/= 0.U
+        raw_v0_vd(i) := current_fu_valid(i) && current_vm(i).asBool() && (next_v0_taken & vd_taken(i) ) =/= 0.U
     }
     val raw_v0 = raw_v0_vd.reduce(Cat(_, _)).orR() & next_v0_read
     
@@ -190,7 +190,15 @@ class VSeq extends NutCoreModule with HasVectorParameter {
         war_vd_vs3(i) := (current_fu_valid(i) && current_vs3_valid(i) && (next_vd_taken & vs3_taken(i)) =/= 0.U).asUInt()
     }
     val war_vs3 = war_vd_vs3.reduce(Cat(_, _)).orR()
-    val war_conflict = war_vs1 | war_vs2 | war_vs3
+
+    // next vd and all v0 s
+    val war_vd_v0 = Wire(Vec(nVFU, UInt(1.W)))
+    for (i <- 0 until nVFU) {
+        war_vd_v0(i) := (current_fu_valid(i) && current_vm(i).asBool() && ((next_vd_taken & next_v0_taken) =/= 0.U)).asUInt()
+    }
+    val war_v0 = war_vd_v0.reduce(Cat(_, _)).orR()
+
+    val war_conflict = war_vs1 | war_vs2 | war_vs3 | war_v0
     // WAW conflicts
     
     // next vd and all vd s
@@ -235,7 +243,7 @@ class VSeq extends NutCoreModule with HasVectorParameter {
 
     } .elsewhen (io.out_valid(fu_vmu)) {
         // this function unit is being emptied
-        current_fu_valid(fu_vmu) := 1.B
+        current_fu_valid(fu_vmu) := 0.B
     }
     when (valid && !conflict && fuType === FuType.vxu && (!current_fu_valid(fu_vxu) || (current_fu_valid(fu_vxu) && io.out_valid(fu_vxu)))) {
         current_fu_valid(fu_vxu) := 1.B
@@ -256,7 +264,7 @@ class VSeq extends NutCoreModule with HasVectorParameter {
         current_vm(fu_vxu) := vm
     } .elsewhen (io.out_valid(fu_vxu)) {
         // this function unit is being emptied
-        current_fu_valid(fu_vxu) := 1.B
+        current_fu_valid(fu_vxu) := 0.B
     }
     when (valid && !conflict && fuType === FuType.vmdu && (!current_fu_valid(fu_vmdu) || (current_fu_valid(fu_vmdu) && io.out_valid(fu_vmdu)))) {
         current_fu_valid(fu_vmdu) := 1.B
@@ -277,7 +285,7 @@ class VSeq extends NutCoreModule with HasVectorParameter {
         current_vm(fu_vmdu) := vm
     } .elsewhen (io.out_valid(fu_vmdu)) {
         // this functiob unit is being emptied
-        current_fu_valid(fu_vmdu) := 1.B
+        current_fu_valid(fu_vmdu) := 0.B
     }
 
     
@@ -297,7 +305,7 @@ class VSeq extends NutCoreModule with HasVectorParameter {
     out_valid_3 := out_valid(0) & out_valid(1) & out_valid(2)
 
     // here we assume that write back ready is always high
-    io.in.out.valid := out_valid(0) | out_valid(1) | out_valid(2) | valid_hold =/= 0.U
+    io.in.out.valid := in_ready // out_valid(0) | out_valid(1) | out_valid(2) | valid_hold =/= 0.U
     
     when (out_valid_1) {
         valid_hold := valid_hold
