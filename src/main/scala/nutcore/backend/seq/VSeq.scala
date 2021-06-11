@@ -3,6 +3,7 @@ package nutcore
 import Chisel.Cat
 import utils.LookupTree
 import chisel3._
+import chisel3.util.experimental.BoringUtils
 
 class VSeqOut extends NutCoreBundle with HasVectorParameter {
     val vs1 = UInt(5.W)
@@ -332,4 +333,9 @@ class VSeq extends NutCoreModule with HasVectorParameter {
         io.out(i).src2 := current_src2(i)
     }
     io.in.out.bits := DontCare
+
+
+    BoringUtils.addSource(current_fu_valid(fu_vxu) | current_fu_valid(fu_vmu) | current_fu_valid(fu_vmdu), "perfCntMvCycle")
+    BoringUtils.addSource(current_fu_valid(fu_vmu), "perfCntMvMemCycle")
+
 }

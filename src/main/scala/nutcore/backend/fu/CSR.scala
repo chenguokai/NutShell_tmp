@@ -795,6 +795,13 @@ class CSR(implicit val p: NutCoreConfig) extends NutCoreModule with HasCSRConst{
     "Custom6"     -> (0xb1e, "Custom6"               ),
     "Custom7"     -> (0xb1f, "Custom7"               ),
     "Custom8"     -> (0xb20, "Custom8"               )
+  ) ++Map(
+    "MvCycle"     -> (0xb21, "perfCntMvCycle"),
+    "MvMemCycle"  -> (0xb22, "perfCntMvMemCycle"),
+    "MvMemInstr"  -> (0xb23, "perfCntMvMemInstr"),
+    "MvExInstr"   -> (0xb24, "perfCntMvExInstr"),
+    "MvMulInstr"  -> (0xb25, "perfCntMvMulInstr"),
+    "MvInstr"     -> (0xb26, "perfCntMvInstr")
   )
 
   val sequentialPerfCntList = Map(

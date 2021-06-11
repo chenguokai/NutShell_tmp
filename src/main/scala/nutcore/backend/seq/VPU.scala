@@ -231,7 +231,12 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
     io.out.valid := vseq.io.in.out.valid
     io.out.bits := DontCare //vxu.io.out.bits.scala
     io.in.ready := vseq.io.in.in.ready
-    
+
+    BoringUtils.addSource(vmu.io.out.valid, "perfCntMvMemInstr")
+    BoringUtils.addSource(vexu_out_valid, "perfCntMvExInstr")
+    BoringUtils.addSource(vmdu_out_valid, "perfCntMvMulInstr")
+    BoringUtils.addSource(io.in.fire(), "perfCntMvInstr")
+
     /*
     BoringUtils.addSource(io.out.fire(), "perfCntCondMvInstr")
     BoringUtils.addSource(io.out.fire() && vxu.io.out.valid, "perfCntCondMvxInstr")
