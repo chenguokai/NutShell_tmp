@@ -1,5 +1,6 @@
 package nutcore
 
+import Chisel.RegEnable
 import chisel3._
 import chisel3.util.{Cat, Fill}
 import utils.{Debug, LookupTreeDefault}
@@ -587,6 +588,13 @@ class VALU_ClusterIO extends NutCoreModule {
         this.maskv0 := maskv0
         (io.in.ready, io.out.bits, io.out.valid)
     }
+
+    val valu_valid = RegInit(0.B);
+    when (io.in.fire()) {
+        valu_valid := true.B
+    } .elsewhen (io.out.fire()) {
+        valu_valid := false.B
+    }
     
     val valu = Module(new VALU)
     val valufunc = LookupTreeDefault(Cat(func, vsew), 0.U, List(
@@ -627,9 +635,9 @@ class VALU_ClusterIO extends NutCoreModule {
     ))
     
     // result of ALU
-    val aluRes = valu.access(src1, src2, valufunc)
+    val aluRes = valu.access(RegEnable(src1, io.in.fire()), RegEnable(src2, io.in.fire()), RegEnable(valufunc, io.in.fire()))
     
     io.out.bits := aluRes
-    io.in.ready := 1.U // always ready for new input
+    io.in.ready := (!valu_valid) || io.out.fire() // always ready for new input
     io.out.valid := valid // always depends on input
 }

@@ -53,17 +53,17 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
         val rf_lane = Module(new VRegArbiter())
         
         // Bank 0: VMU v0
-        rf_lane.io.read.raddr(0) := 0.U
+        // rf_lane.io.read.raddr(0) := 0.U
         // Bank 1: VMU src2
-        rf_lane.io.read.raddr(1) := vmu.io.vreg.vs2
+        rf_lane.io.read.raddr(0) := Mux((io.in.fire() && io.fuType === FuType.vmu) || !vmu.io.in.ready, vmu.io.vreg.vs2, vexu(i).io.vreg.vs1)
         // Bank 2: VMU src3
-        rf_lane.io.read.raddr(2) := vmu.io.vreg.vs3
+        rf_lane.io.read.raddr(1) := Mux((io.in.fire() && io.fuType === FuType.vmu) || !vmu.io.in.ready, vmu.io.vreg.vs3, vexu(i).io.vreg.vs2)
         // Bank 3: VEXU v0
-        rf_lane.io.read.raddr(3) := 0.U
+        // rf_lane.io.read.raddr(3) := 0.U
         // Bank 4: VEXU src1
-        rf_lane.io.read.raddr(4) := vexu(i).io.vreg.vs1
+        // rf_lane.io.read.raddr(4) :=
         // Bank 5: VEXU src2
-        rf_lane.io.read.raddr(5) := vexu(i).io.vreg.vs2
+        //rf_lane.io.read.raddr(5) :=
         
         // Write port 0: VMU
         rf_lane.io.write.waddr(0) := vmu.io.vreg.vd
@@ -90,22 +90,22 @@ class VPU(implicit val p: NutCoreConfig) extends Module with HasVectorParameter 
     }
     
     // Bank 0: VMU v0
-    val vmu_v0 = Cat(vrf(3).io.read.rdata(0), vrf(2).io.read.rdata(0), vrf(1).io.read.rdata(0), vrf(0).io.read.rdata(0)) // mask
+    val vmu_v0 = Cat(vrf(3).io.read.rdata(2), vrf(2).io.read.rdata(2), vrf(1).io.read.rdata(2), vrf(0).io.read.rdata(2)) // mask
     
     // VMU src1: DontCare
     // Bank 1: VMU src2
-    val vmu_src2 = Cat(vrf(3).io.read.rdata(1), vrf(2).io.read.rdata(1), vrf(1).io.read.rdata(1),  vrf(0).io.read.rdata(1))
+    val vmu_src2 = Cat(vrf(3).io.read.rdata(0), vrf(2).io.read.rdata(0), vrf(1).io.read.rdata(0),  vrf(0).io.read.rdata(0))
 
     // Bank 2: VMU src3
-    val vmu_src3 = Cat(vrf(3).io.read.rdata(2), vrf(2).io.read.rdata(2), vrf(1).io.read.rdata(2), vrf(0).io.read.rdata(2))
+    val vmu_src3 = Cat(vrf(3).io.read.rdata(1), vrf(2).io.read.rdata(1), vrf(1).io.read.rdata(1), vrf(0).io.read.rdata(1))
 
     // Bank 3: VXU v0
-    val vexu_v0 = Cat(vrf(3).io.read.rdata(3), vrf(2).io.read.rdata(3), vrf(1).io.read.rdata(3), vrf(0).io.read.rdata(3)) // mask
+    val vexu_v0 = Cat(vrf(3).io.read.rdata(2), vrf(2).io.read.rdata(2), vrf(1).io.read.rdata(2), vrf(0).io.read.rdata(2)) // mask
     // Bank 4: VXU src1
     // Bank 5: VXU src2
     for (i <- 0 until NLane) {
-        vexu(i).io.vreg.vsrc1 := vrf(i).io.read.rdata(4)
-        vexu(i).io.vreg.vsrc2 := vrf(i).io.read.rdata(5)
+        vexu(i).io.vreg.vsrc1 := vrf(i).io.read.rdata(0)
+        vexu(i).io.vreg.vsrc2 := vrf(i).io.read.rdata(1)
         vexu(i).io.vreg.vsrc3 := DontCare
     }
     

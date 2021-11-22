@@ -43,6 +43,7 @@ class SDHelper extends BlackBox with HasBlackBoxInline {
 
   setInline("SDHelper.v",
     s"""
+      |/* verilator lint_off LATCH */
       |import "DPI-C" function void sd_setaddr(input int addr);
       |import "DPI-C" function void sd_read(output int data);
       |

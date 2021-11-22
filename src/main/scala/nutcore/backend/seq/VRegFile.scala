@@ -4,6 +4,8 @@ import Chisel.{Cat, Decoupled, Log2, PriorityMux, log2Ceil}
 import chisel3._
 import chisel3.util.experimental.BoringUtils
 
+import scala.language.postfixOps
+
 trait HasVRegFileParameter {
     val NVReg = 32
     val NVReg_W = log2Ceil(NVReg)
@@ -12,13 +14,13 @@ trait HasVRegFileParameter {
     val NFu = 4 // number of function units: ALU MDU LSU and SlideU
      */
     // currently only VMU
-    val NBank = 6
+    val NRead = 3
     val NFu = 2
 }
 
 class VRegFileIO extends NutCoreBundle with HasVRegFileParameter with HasVectorParameter {
-    val raddr = Output(Vec(NBank, UInt(5.W)))
-    val rdata = Input(Vec(NBank, UInt(XLEN.W)))
+    val raddr = Output(Vec(NRead - 1, UInt(5.W)))
+    val rdata = Input(Vec(NRead, UInt(XLEN.W)))
     val waddr = Output(UInt(5.W))
     val wdata = Output(UInt(XLEN.W))
     val wmask = Output(UInt((MLEN / NLane).W))
@@ -27,8 +29,8 @@ class VRegFileIO extends NutCoreBundle with HasVRegFileParameter with HasVectorP
 }
 
 class VRegFileSingleBankIO extends NutCoreBundle with HasVRegFileParameter with HasVectorParameter {
-    val raddr = Output(UInt(5.W))
-    val rdata = Input(UInt(XLEN.W))
+    val raddr = Output(Vec(NRead - 1, UInt(5.W)))
+    val rdata = Input(Vec(NRead, UInt(XLEN.W)))
     val waddr = Output(UInt(5.W))
     val wdata = Output(UInt(XLEN.W))
     val wmask = Output(UInt((MLEN / NLane).W))
@@ -41,7 +43,11 @@ class VRegFileSingleBank extends NutCoreModule with HasVRegFileParameter with Ha
     // bank cannot be wrapped inside
     val rf = Reg(Vec(NVReg, UInt(XLEN.W)))
     // leave bank arbeiter logic outside reg file
-    io.rdata := rf(io.raddr)
+    for (i <- 0 until NRead - 1) {
+        io.rdata(i) := rf(io.raddr(i))
+    }
+    io.rdata(NRead - 1) := io.raddr(0)
+
     val rf_write_ori = Wire(UInt(XLEN.W))
     rf_write_ori := rf(io.waddr)
     val rf_write_data = Wire(Vec(XLEN / BLEN, UInt(BLEN.W)))
@@ -59,48 +65,48 @@ class VRegFileSingleBank extends NutCoreModule with HasVRegFileParameter with Ha
 
 class VRegFile(implicit val p: NutCoreConfig) extends NutCoreModule with HasVRegFileParameter {
     val io = IO(Flipped(new VRegFileIO))
-    
+
     def access(raddr: Vec[UInt], wen: Bool, waddr: UInt, wdata: UInt, wmask: UInt) = {
-        for (i <- 0 until NBank) {
-            io.wen := wen
+        io.wen := wen
+        io.waddr := waddr
+        io.wdata := wdata
+        io.wmask := wmask
+        for (i <- 0 until NRead - 1) {
             io.raddr(i) := raddr(i)
-            io.waddr := waddr
-            io.wdata := wdata
-            io.wmask := wmask
         }
         io.rdata
     }
     // a vector of single bank register file
     // val rf_vec = Vec(NBank, Module(new VRegFileSingleBank).io)
-    val rf_vec = for (i <- 0 until NBank) yield
-        {
-            val rf_unit = Module(new VRegFileSingleBank)
-            rf_unit.io.waddr := io.waddr
-            rf_unit.io.wdata := io.wdata
-            rf_unit.io.wmask := io.wmask
-            rf_unit.io.wen := io.wen
-            rf_unit.io.raddr := io.raddr(i)
-            io.rdata(i) := rf_unit.io.rdata
-            // any wiring or other logic can go here
-            rf_unit
-        }
-    
+    val rf_vec = Module(new VRegFileSingleBank)
+    rf_vec.io.waddr := io.waddr
+    rf_vec.io.wdata := io.wdata
+    rf_vec.io.wmask := io.wmask
+    rf_vec.io.wen := io.wen
+    for (i <- 0 until NRead - 1) {
+        rf_vec.io.raddr(i) := io.raddr(i)
+    }
+    for (i <- 0 until NRead) {
+        io.rdata(i) := rf_vec.io.rdata(i)
+    }
+
+
     // debug port always from the first bank
-    io.debug := rf_vec(0).io.debug
+    io.debug := rf_vec.io.debug
     /*
     def read(addr: UInt) = {
         // reading from the first bank
         rf_vec(0).read(addr)
     }
      */
-    
+
     // todo: review the register file design
     // only design a single write port
 }
 
 class VRegReadIO extends NutCoreBundle with HasVRegFileParameter {
-    val raddr = Input(Vec(NBank, UInt(5.W)))
-    val rdata = Output(Vec(NBank, UInt(XLEN.W)))
+    val raddr = Input(Vec(NRead - 1, UInt(5.W)))
+    val rdata = Output(Vec(NRead, UInt(XLEN.W)))
 }
 
 class VRegWriteIO extends NutCoreBundle with HasVRegFileParameter with HasVectorParameter {
